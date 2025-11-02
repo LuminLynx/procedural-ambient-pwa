@@ -1,0 +1,17 @@
+:root {
+  --bg: #0b1220;
+  --fg: #e5e7eb;
+  --muted: #94a3b8;
+  --brand: #a78bfa;
+}
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
+.container { max-width: 840px; margin: 0 auto; padding: 24px; }
+.card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.btn { background: var(--brand); color: #0b1220; padding: 10px 16px; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--fg); border-radius: 12px; padding: 10px; }
+.range { width: 100%; }
+.small { color: var(--muted); font-size: 12px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px){ .row{ grid-template-columns: 1fr; } }
