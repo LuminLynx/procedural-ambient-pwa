@@ -6,7 +6,8 @@ import './styles.css'
 // register SW
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js');
+    const swPath = import.meta.env.BASE_URL + 'sw.js'
+    navigator.serviceWorker.register(swPath);
   });
 }
 

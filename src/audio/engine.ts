@@ -106,8 +106,25 @@ export class AmbientEngine {
   }
 
   setMix(mix:number){
+    this.params.mix = mix;
     this.delay.delayTime.setValueAtTime(0.3 + 0.4*mix, this.ctx.currentTime);
     this.fb.gain.setValueAtTime(0.2 + 0.5*mix, this.ctx.currentTime);
+  }
+
+  setScale(scale: 'majorPent' | 'minorPent'){
+    this.params.scale = scale;
+  }
+
+  setRootHz(rootHz: number){
+    this.params.rootHz = rootHz;
+  }
+
+  setBpm(bpm: number){
+    this.params.bpm = bpm;
+  }
+
+  setComplexity(complexity: number){
+    this.params.complexity = complexity;
   }
 
   async start(){
