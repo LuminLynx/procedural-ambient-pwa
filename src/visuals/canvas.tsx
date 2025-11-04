@@ -62,13 +62,22 @@ export default function CanvasVisuals({
     melodyAnalysersRef.current = melodyAnalysers;
 
     return () => {
-      // Cleanup
-      if (analyserRef.current) {
-        masterNode.disconnect(analyserRef.current);
+      // Cleanup - safely disconnect nodes
+      try {
+        if (analyserRef.current && masterNode) {
+          masterNode.disconnect(analyserRef.current);
+        }
+      } catch (e) {
+        // Ignore disconnect errors during cleanup
       }
+      
       melodyAnalysers.forEach((ma, i) => {
-        if (melodyNodes[i]) {
-          melodyNodes[i].disconnect(ma);
+        try {
+          if (melodyNodes[i]) {
+            melodyNodes[i].disconnect(ma);
+          }
+        } catch (e) {
+          // Ignore disconnect errors during cleanup
         }
       });
     };
