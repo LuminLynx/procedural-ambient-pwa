@@ -222,8 +222,10 @@ export class AmbientEngine {
   }
   
   // Create oscillator with timbre variation
-  createOscillator(freq: number, timbre: TimbreMode): OscillatorNode {
+  // Returns [oscillator, optional modulator oscillator for cleanup]
+  createOscillator(freq: number, timbre: TimbreMode): [OscillatorNode, OscillatorNode | null] {
     const osc = this.ctx.createOscillator();
+    let modOsc: OscillatorNode | null = null;
     
     switch (timbre) {
       case 'sine':
@@ -238,18 +240,17 @@ export class AmbientEngine {
       case 'fm': {
         // FM synthesis: carrier + modulator
         osc.type = 'sine';
-        const mod = this.ctx.createOscillator();
+        modOsc = this.ctx.createOscillator();
         const modGain = this.ctx.createGain();
-        mod.frequency.value = freq * 1.5; // mod ratio
+        modOsc.frequency.value = freq * 1.5; // mod ratio
         modGain.gain.value = freq * 1.5; // FM index ~1-2
-        mod.connect(modGain).connect(osc.frequency);
-        mod.start(this.ctx.currentTime);
+        modOsc.connect(modGain).connect(osc.frequency);
         break;
       }
     }
     
     osc.frequency.value = freq;
-    return osc;
+    return [osc, modOsc];
   }
 
   // Markov interval transition: center-weighted, blended by complexity
@@ -351,7 +352,7 @@ export class AmbientEngine {
   }
 
   playNote(freq:number, t0:number, dur:number, amp:number, env:{a:number,d:number,s:number,r:number}, timbre:TimbreMode='sine', vibrato?:number, panNode?:StereoPannerNode){
-    const osc = this.createOscillator(freq, timbre);
+    const [osc, modOsc] = this.createOscillator(freq, timbre);
     const g = this.ctx.createGain();
 
     // Apply soft clipping for softsq timbre
@@ -382,6 +383,11 @@ export class AmbientEngine {
       g.connect(this.gain);
     }
     
+    // Start oscillators
+    if (modOsc) {
+      modOsc.start(t0);
+      modOsc.stop(t0 + Math.max(env.a+env.d, dur) + env.r + 0.05);
+    }
     osc.start(t0);
     osc.stop(t0 + Math.max(env.a+env.d, dur) + env.r + 0.05);
   }
