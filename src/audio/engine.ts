@@ -24,6 +24,13 @@ const BASS_HITS = 3; // Euclidean rhythm: 3 hits over 8 beats
 const CADENCE_INTERVAL = 16; // beats between cadences
 const PHRASE_LENGTH = 32; // beats per phrase for octave lifts
 
+// Drum pattern constants
+const DRUM_GHOST_PROBABILITY = 0.25; // Probability of ghost snare notes
+const DRUM_SNARE_AMP = 0.45; // Base amplitude for snare hits
+const DRUM_KICK_AMP = 0.6; // Base amplitude for kick hits
+const DRUM_HAT_AMP = 0.25; // Base amplitude for hi-hat hits
+const DRUM_HAT_CLOSED_PROB = 0.85; // Probability of closed vs open hi-hats
+
 // Scene definitions
 type Scene = { 
   name: string; 
@@ -319,8 +326,9 @@ export class AmbientEngine {
     const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds of noise
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
+    // Use seeded RNG for deterministic noise when seed is provided
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
+      data[i] = this.rng() * 2 - 1;
     }
     return buffer;
   }
@@ -410,22 +418,22 @@ export class AmbientEngine {
     
     // Kick: Euclidean 5/16 pattern (main beats + occasional syncopation)
     if (this.euclideanRhythm(sixteenthStep % 16, 5, 16)) {
-      this.playKick(t0, 0.6);
+      this.playKick(t0, DRUM_KICK_AMP);
     }
     
     // Snare: base pattern on beats 2 and 4 (steps 4 and 12) + ghosts
     const beatStep = sixteenthStep % 16;
     if (beatStep === 4 || beatStep === 12) {
-      this.playSnare(t0, 0.45, false);
-    } else if (this.euclideanRhythm(sixteenthStep % 16, 2, 16) && this.rng() < 0.25) {
+      this.playSnare(t0, DRUM_SNARE_AMP, false);
+    } else if (this.euclideanRhythm(sixteenthStep % 16, 2, 16) && this.rng() < DRUM_GHOST_PROBABILITY) {
       // Occasional ghost notes
-      this.playSnare(t0, 0.45, true);
+      this.playSnare(t0, DRUM_SNARE_AMP, true);
     }
     
     // Hi-hats: Euclidean 9/16 pattern (off-beats and syncopations)
     if (this.euclideanRhythm(sixteenthStep % 16, 9, 16)) {
-      const isClosed = this.rng() < 0.85; // Mostly closed hats
-      this.playHat(t0, 0.25, isClosed);
+      const isClosed = this.rng() < DRUM_HAT_CLOSED_PROB; // Mostly closed hats
+      this.playHat(t0, DRUM_HAT_AMP, isClosed);
     }
   }
 
@@ -439,7 +447,9 @@ export class AmbientEngine {
     this.updatePanDrift();
     
     // Trigger drums on 16th note subdivisions
-    // We'll call drums 4 times per beat (every 16th note)
+    // Schedule 4 drum events per beat for tighter rhythmic control.
+    // This approach is acceptable for this use case as it creates a manageable
+    // number of audio nodes per beat and provides good timing precision.
     const sixteenthSec = beatSec / 4;
     for (let i = 0; i < 4; i++) {
       const sixteenthTime = t0 + (i * sixteenthSec);
