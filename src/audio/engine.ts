@@ -95,6 +95,10 @@ export class AmbientEngine {
   harmonicLoopIndex = 0;
   targetRootHz: number;
   currentRootHz: number;
+  harmonicSlewStart?: number;
+  harmonicSlewEnd?: number;
+  harmonicSlewStartTime?: number;
+  harmonicSlewEndTime?: number;
   
   // Bell voice state
   nextBellBeat = 0;
@@ -161,7 +165,17 @@ export class AmbientEngine {
     this.drumBus.connect(this.drumCompressor);
     this.drumCompressor.connect(this.out);
     
-    // Create shared noise buffer for hats and snare
+    this.params = params;
+    
+    // Initialize scene engine parameters
+    this.sceneDurationBars = params.sceneDurationBars ?? 32;
+    this.enableScenes = params.enableScenes ?? true;
+    this.enableHarmonicLoop = params.enableHarmonicLoop ?? true;
+    
+    // Initialize RNG (must come before createNoiseBuffer)
+    this.rng = params.seed !== undefined ? mulberry32(params.seed) : Math.random;
+    
+    // Create shared noise buffer for hats and snare (uses RNG)
     this.noiseBuffer = this.createNoiseBuffer();
 
     // Create melody buses for multi-melody output tracking (max 3)
@@ -170,16 +184,6 @@ export class AmbientEngine {
       melodyBus.connect(this.gain);
       this.melodyBuses.push(melodyBus);
     }
-
-    this.params = params;
-    
-    // Initialize scene engine parameters
-    this.sceneDurationBars = params.sceneDurationBars ?? 32;
-    this.enableScenes = params.enableScenes ?? true;
-    this.enableHarmonicLoop = params.enableHarmonicLoop ?? true;
-    
-    // Initialize RNG
-    this.rng = params.seed !== undefined ? mulberry32(params.seed) : Math.random;
     
     // Initialize harmonic loop
     this.targetRootHz = params.rootHz;
@@ -239,23 +243,56 @@ export class AmbientEngine {
     this.currentTimbre = progress < 0.5 ? currentScene.timbre : nextScene.timbre;
   }
   
-  // Harmonic Loop: shift root frequency every 8 bars
+  // Harmonic Loop: shift root frequency every 8 bars with 600ms slew
   updateHarmonicLoop() {
     if (!this.enableHarmonicLoop) {
       this.targetRootHz = this.params.rootHz;
+      this.currentRootHz = this.params.rootHz;
       return;
     }
     
     const barCount = Math.floor(this.beatCount / BEATS_PER_BAR);
     
-    // Every 8 bars, move to next root in the loop
+    // Every 8 bars, move to next root in the loop (exact spec: A3=220 → F#3=185 → D3=147 → E3=165)
     if (barCount % 8 === 0 && this.beatCount % BEATS_PER_BAR === 0) {
+      const oldTarget = this.targetRootHz;
       this.harmonicLoopIndex = (this.harmonicLoopIndex + 1) % ROOT_LOOP_HZ.length;
       this.targetRootHz = ROOT_LOOP_HZ[this.harmonicLoopIndex];
+      
+      // Only update if target actually changed
+      if (oldTarget !== this.targetRootHz) {
+        // Linear slew over 600ms (exact spec)
+        const t0 = this.ctx.currentTime;
+        const slewTime = 0.6; // 600ms
+        
+        // Store start and end for linear interpolation
+        const startHz = this.currentRootHz;
+        const endHz = this.targetRootHz;
+        const startTime = t0;
+        const endTime = t0 + slewTime;
+        
+        // We'll interpolate in the tick function
+        this.harmonicSlewStart = startHz;
+        this.harmonicSlewEnd = endHz;
+        this.harmonicSlewStartTime = startTime;
+        this.harmonicSlewEndTime = endTime;
+      }
     }
     
-    // Slew current root towards target smoothly
-    this.currentRootHz += (this.targetRootHz - this.currentRootHz) * HARMONIC_SLEW_RATE;
+    // Interpolate current root based on slew timing
+    if (this.harmonicSlewStartTime !== undefined && this.harmonicSlewEndTime !== undefined) {
+      const t0 = this.ctx.currentTime;
+      if (t0 >= this.harmonicSlewEndTime) {
+        // Slew complete
+        this.currentRootHz = this.harmonicSlewEnd!;
+        this.harmonicSlewStartTime = undefined;
+        this.harmonicSlewEndTime = undefined;
+      } else if (t0 >= this.harmonicSlewStartTime) {
+        // Slewing in progress - linear interpolation
+        const progress = (t0 - this.harmonicSlewStartTime) / (this.harmonicSlewEndTime - this.harmonicSlewStartTime);
+        this.currentRootHz = this.harmonicSlewStart! + (this.harmonicSlewEnd! - this.harmonicSlewStart!) * progress;
+      }
+    }
   }
   
   // Update pan drift for stereo movement
