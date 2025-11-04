@@ -42,6 +42,13 @@ const SCENES: Scene[] = [
 // Harmonic loop: A3 → F#3 → D3 → E3
 const ROOT_LOOP_HZ = [220, 185, 147, 165];
 
+// FM synthesis parameters
+const FM_MOD_RATIO = 1.5; // Modulator frequency ratio
+const FM_INDEX = 2.0; // FM index for modulation depth
+
+// Harmonic slew rate (interpolation factor per beat)
+const HARMONIC_SLEW_RATE = 0.15;
+
 // Mulberry32 seeded RNG
 function mulberry32(seed: number) {
   return function() {
@@ -205,9 +212,8 @@ export class AmbientEngine {
       this.targetRootHz = ROOT_LOOP_HZ[this.harmonicLoopIndex];
     }
     
-    // Slew current root towards target over ~0.5s
-    const slewRate = 0.05; // per beat
-    this.currentRootHz += (this.targetRootHz - this.currentRootHz) * slewRate;
+    // Slew current root towards target smoothly
+    this.currentRootHz += (this.targetRootHz - this.currentRootHz) * HARMONIC_SLEW_RATE;
   }
   
   // Update pan drift for stereo movement
@@ -242,8 +248,8 @@ export class AmbientEngine {
         osc.type = 'sine';
         modOsc = this.ctx.createOscillator();
         const modGain = this.ctx.createGain();
-        modOsc.frequency.value = freq * 1.5; // mod ratio
-        modGain.gain.value = freq * 1.5; // FM index ~1-2
+        modOsc.frequency.value = freq * FM_MOD_RATIO;
+        modGain.gain.value = freq * FM_INDEX;
         modOsc.connect(modGain).connect(osc.frequency);
         break;
       }

@@ -36,7 +36,7 @@ export default function App(){
         engineRef.current.stop()
       }
     }
-  }, [])
+  }, [enableScenes, enableHarmonicLoop, seed]) // Only recreate when advanced settings change
 
   useEffect(() => {
     if (engineRef.current) {
