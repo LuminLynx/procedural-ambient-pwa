@@ -11,11 +11,26 @@ export default function App(){
   const [complexity, setComplexity] = useState(0.35)
   const [mix, setMix] = useState(0.4)
   const [rootHz, setRootHz] = useState(220)
+  
+  // New optional controls
+  const [enableScenes, setEnableScenes] = useState(true)
+  const [enableHarmonicLoop, setEnableHarmonicLoop] = useState(true)
+  const [seed, setSeed] = useState<number | undefined>(undefined)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const engineRef = useRef<AmbientEngine | null>(null)
 
   useEffect(() => {
-    engineRef.current = new AmbientEngine({ scale, rootHz, bpm, complexity, mix })
+    engineRef.current = new AmbientEngine({ 
+      scale, 
+      rootHz, 
+      bpm, 
+      complexity, 
+      mix,
+      enableScenes,
+      enableHarmonicLoop,
+      seed
+    })
     return () => {
       if (engineRef.current) {
         engineRef.current.stop()
@@ -106,6 +121,49 @@ export default function App(){
             <input className="range" type="range" min={0} max={1} step={0.01} value={mix} onChange={e=>setMix(parseFloat(e.target.value))} />
           </label>
         </div>
+        
+        <div style={{marginTop: 12}}>
+          <button 
+            className="btn" 
+            style={{fontSize: '0.85em', padding: '4px 12px'}}
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? '▼' : '▶'} Advanced
+          </button>
+        </div>
+        
+        {showAdvanced && (
+          <div className="row" style={{marginTop: 12, paddingTop: 12, borderTop: '1px solid #333'}}>
+            <label style={{display: 'flex', alignItems: 'center', gap: 8}}>
+              <input 
+                type="checkbox" 
+                checked={enableScenes} 
+                onChange={e => setEnableScenes(e.target.checked)}
+                disabled={running}
+              />
+              Enable Dynamic Scenes
+            </label>
+            <label style={{display: 'flex', alignItems: 'center', gap: 8}}>
+              <input 
+                type="checkbox" 
+                checked={enableHarmonicLoop} 
+                onChange={e => setEnableHarmonicLoop(e.target.checked)}
+                disabled={running}
+              />
+              Enable Harmonic Loop
+            </label>
+            <label>Seed (optional)
+              <input 
+                className="input" 
+                type="number" 
+                value={seed ?? ''} 
+                placeholder="random"
+                onChange={e => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
+                disabled={running}
+              />
+            </label>
+          </div>
+        )}
         <div style={{display:'flex', gap:12, marginTop:16}}>
           {!running ? <button className="btn" onClick={onStart}>Start</button> : <button className="btn" onClick={onStop}>Stop</button>}
           {!installed && deferredPrompt && <button className="btn" onClick={onInstall}>Install</button>}
