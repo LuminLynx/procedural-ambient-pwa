@@ -11,6 +11,7 @@ export default function App(){
   const [complexity, setComplexity] = useState(0.35)
   const [mix, setMix] = useState(0.4)
   const [rootHz, setRootHz] = useState(220)
+  const [drumLevel, setDrumLevel] = useState(0.5)
   
   // New optional controls
   const [enableScenes, setEnableScenes] = useState(true)
@@ -27,6 +28,7 @@ export default function App(){
       bpm, 
       complexity, 
       mix,
+      drumLevel,
       enableScenes,
       enableHarmonicLoop,
       seed
@@ -67,6 +69,12 @@ export default function App(){
       engineRef.current.setMix(mix)
     }
   }, [mix])
+  
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setDrumLevel(drumLevel)
+    }
+  }, [drumLevel])
 
   useEffect(()=>{
     const handler = (e:any)=>{ e.preventDefault(); setDeferredPrompt(e); };
@@ -119,6 +127,9 @@ export default function App(){
           </label>
           <label>Space (delay mix): {mix.toFixed(2)}
             <input className="range" type="range" min={0} max={1} step={0.01} value={mix} onChange={e=>setMix(parseFloat(e.target.value))} />
+          </label>
+          <label>Drum Level: {drumLevel.toFixed(2)}
+            <input className="range" type="range" min={0} max={1} step={0.01} value={drumLevel} onChange={e=>setDrumLevel(parseFloat(e.target.value))} />
           </label>
         </div>
         
