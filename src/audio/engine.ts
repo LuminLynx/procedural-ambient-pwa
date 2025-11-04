@@ -31,28 +31,29 @@ const DRUM_KICK_AMP = 0.6; // Base amplitude for kick hits
 const DRUM_HAT_AMP = 0.25; // Base amplitude for hi-hat hits
 const DRUM_HAT_CLOSED_PROB = 0.85; // Probability of closed vs open hi-hats
 
-// Scene definitions
+// Scene definitions with exact density values
 type Scene = { 
   name: string; 
   scale: 'majorPent' | 'minorPent'; 
   bpm: number; 
   mix: number; 
-  complexity: number; 
+  complexity: number;
+  density: number; // probability of melodic note per beat
   timbre: TimbreMode;
 };
 
 const SCENES: Scene[] = [
-  { name: 'Calm', scale: 'majorPent', bpm: 72, mix: 0.4, complexity: 0.30, timbre: 'sine' },
-  { name: 'Nocturne', scale: 'minorPent', bpm: 62, mix: 0.55, complexity: 0.45, timbre: 'triangle' },
-  { name: 'Ether', scale: 'majorPent', bpm: 68, mix: 0.65, complexity: 0.55, timbre: 'fm' }
+  { name: 'Calm', scale: 'majorPent', bpm: 72, mix: 0.4, complexity: 0.30, density: 0.80, timbre: 'sine' },
+  { name: 'Nocturne', scale: 'minorPent', bpm: 62, mix: 0.55, complexity: 0.45, density: 0.65, timbre: 'triangle' },
+  { name: 'Ether', scale: 'majorPent', bpm: 68, mix: 0.65, complexity: 0.55, density: 0.55, timbre: 'fm' }
 ];
 
 // Harmonic loop: A3 → F#3 → D3 → E3
 const ROOT_LOOP_HZ = [220, 185, 147, 165];
 
-// FM synthesis parameters
+// FM synthesis parameters (exact spec values)
 const FM_MOD_RATIO = 1.5; // Modulator frequency ratio
-const FM_INDEX = 2.0; // FM index for modulation depth
+const FM_INDEX = 1.8; // FM index for modulation depth
 
 // Harmonic slew rate (interpolation factor per beat)
 const HARMONIC_SLEW_RATE = 0.15;
@@ -88,14 +89,22 @@ export class AmbientEngine {
   enableScenes = true;
   enableHarmonicLoop = true;
   currentTimbre: TimbreMode = 'sine';
+  currentDensity = 0.80; // current melody density
   
   // Harmonic loop state
   harmonicLoopIndex = 0;
   targetRootHz: number;
   currentRootHz: number;
+  harmonicSlewStart?: number;
+  harmonicSlewEnd?: number;
+  harmonicSlewStartTime?: number;
+  harmonicSlewEndTime?: number;
   
   // Bell voice state
   nextBellBeat = 0;
+  
+  // Multi-melody buses (up to 3)
+  melodyBuses: GainNode[] = [];
   
   // Pan nodes for stereo drift
   padPanL: StereoPannerNode;
@@ -156,9 +165,6 @@ export class AmbientEngine {
     this.drumBus.connect(this.drumCompressor);
     this.drumCompressor.connect(this.out);
     
-    // Create shared noise buffer for hats and snare
-    this.noiseBuffer = this.createNoiseBuffer();
-
     this.params = params;
     
     // Initialize scene engine parameters
@@ -166,8 +172,18 @@ export class AmbientEngine {
     this.enableScenes = params.enableScenes ?? true;
     this.enableHarmonicLoop = params.enableHarmonicLoop ?? true;
     
-    // Initialize RNG
+    // Initialize RNG (must come before createNoiseBuffer)
     this.rng = params.seed !== undefined ? mulberry32(params.seed) : Math.random;
+    
+    // Create shared noise buffer for hats and snare (uses RNG)
+    this.noiseBuffer = this.createNoiseBuffer();
+
+    // Create melody buses for multi-melody output tracking (max 3)
+    for (let i = 0; i < 3; i++) {
+      const melodyBus = this.ctx.createGain();
+      melodyBus.connect(this.gain);
+      this.melodyBuses.push(melodyBus);
+    }
     
     // Initialize harmonic loop
     this.targetRootHz = params.rootHz;
@@ -217,6 +233,9 @@ export class AmbientEngine {
     // Interpolate complexity
     this.params.complexity = currentScene.complexity + (nextScene.complexity - currentScene.complexity) * t;
     
+    // Interpolate density
+    this.currentDensity = currentScene.density + (nextScene.density - currentScene.density) * t;
+    
     // Update scale (switch at 50% through scene)
     this.params.scale = progress < 0.5 ? currentScene.scale : nextScene.scale;
     
@@ -224,23 +243,56 @@ export class AmbientEngine {
     this.currentTimbre = progress < 0.5 ? currentScene.timbre : nextScene.timbre;
   }
   
-  // Harmonic Loop: shift root frequency every 8 bars
+  // Harmonic Loop: shift root frequency every 8 bars with 600ms slew
   updateHarmonicLoop() {
     if (!this.enableHarmonicLoop) {
       this.targetRootHz = this.params.rootHz;
+      this.currentRootHz = this.params.rootHz;
       return;
     }
     
     const barCount = Math.floor(this.beatCount / BEATS_PER_BAR);
     
-    // Every 8 bars, move to next root in the loop
+    // Every 8 bars, move to next root in the loop (exact spec: A3=220 → F#3=185 → D3=147 → E3=165)
     if (barCount % 8 === 0 && this.beatCount % BEATS_PER_BAR === 0) {
+      const oldTarget = this.targetRootHz;
       this.harmonicLoopIndex = (this.harmonicLoopIndex + 1) % ROOT_LOOP_HZ.length;
       this.targetRootHz = ROOT_LOOP_HZ[this.harmonicLoopIndex];
+      
+      // Only update if target actually changed
+      if (oldTarget !== this.targetRootHz) {
+        // Linear slew over 600ms (exact spec)
+        const t0 = this.ctx.currentTime;
+        const slewTime = 0.6; // 600ms
+        
+        // Store start and end for linear interpolation
+        const startHz = this.currentRootHz;
+        const endHz = this.targetRootHz;
+        const startTime = t0;
+        const endTime = t0 + slewTime;
+        
+        // We'll interpolate in the tick function
+        this.harmonicSlewStart = startHz;
+        this.harmonicSlewEnd = endHz;
+        this.harmonicSlewStartTime = startTime;
+        this.harmonicSlewEndTime = endTime;
+      }
     }
     
-    // Slew current root towards target smoothly
-    this.currentRootHz += (this.targetRootHz - this.currentRootHz) * HARMONIC_SLEW_RATE;
+    // Interpolate current root based on slew timing
+    if (this.harmonicSlewStartTime !== undefined && this.harmonicSlewEndTime !== undefined) {
+      const t0 = this.ctx.currentTime;
+      if (t0 >= this.harmonicSlewEndTime) {
+        // Slew complete
+        this.currentRootHz = this.harmonicSlewEnd!;
+        this.harmonicSlewStartTime = undefined;
+        this.harmonicSlewEndTime = undefined;
+      } else if (t0 >= this.harmonicSlewStartTime) {
+        // Slewing in progress - linear interpolation
+        const progress = (t0 - this.harmonicSlewStartTime) / (this.harmonicSlewEndTime - this.harmonicSlewStartTime);
+        this.currentRootHz = this.harmonicSlewStart! + (this.harmonicSlewEnd! - this.harmonicSlewStart!) * progress;
+      }
+    }
   }
   
   // Update pan drift for stereo movement
@@ -286,16 +338,16 @@ export class AmbientEngine {
     return [osc, modOsc];
   }
 
-  // Markov interval transition: center-weighted, blended by complexity
+  // Markov interval transition with exact spec transitions
   markovStep(){
     const intervals = [-2, -1, 0, 1, 2];
-    // Transition matrix: favor staying near 0 when complexity is low
+    // Exact transition matrix from spec:
     const baseWeights = [
-      [0.2, 0.3, 0.3, 0.15, 0.05], // from -2
-      [0.15, 0.25, 0.35, 0.2, 0.05], // from -1
-      [0.1, 0.2, 0.4, 0.2, 0.1],   // from 0 (center-weighted)
-      [0.05, 0.2, 0.35, 0.25, 0.15], // from +1
-      [0.05, 0.15, 0.3, 0.3, 0.2]  // from +2
+      [0.10, 0.25, 0.40, 0.20, 0.05], // from -2
+      [0.05, 0.25, 0.45, 0.20, 0.05], // from -1
+      [0.10, 0.20, 0.40, 0.20, 0.10], // from  0 (center-weighted)
+      [0.05, 0.20, 0.45, 0.25, 0.05], // from +1
+      [0.05, 0.20, 0.40, 0.25, 0.10]  // from +2
     ];
     
     const lastIdx = intervals.indexOf(this.lastInterval);
@@ -462,26 +514,25 @@ export class AmbientEngine {
     const barIndex = Math.floor(this.beatCount / BEATS_PER_BAR);
     const sectionOffset = sectionOffsets[barIndex % sectionOffsets.length];
 
-    // Cadence every 16 beats: nudge to stable degree
+    // Cadence every 16 beats: nudge to stable degree (exact spec: 60% to 0, 40% to 2)
     const isCadence = this.beatCount % CADENCE_INTERVAL === (CADENCE_INTERVAL - 1);
-    if (isCadence && this.rng() < 0.75) {
-      this.degree = this.rng() < 0.5 ? 0 : 2; // stable degrees
+    if (isCadence) {
+      this.degree = this.rng() < 0.6 ? 0 : 2; // stable degrees (60% / 40% split)
       this.lastInterval = 0;
     } else {
       this.markovStep();
     }
 
-    // Melody with probabilistic rests
-    const restProb = 0.15 + 0.25 * this.params.complexity;
-    if (this.rng() > restProb) {
+    // Melody with density control (exact spec: density ∈ [0.4, 0.9])
+    if (this.rng() < this.currentDensity) {
       // Occasional octave lift at phrase ends (every 32 beats)
       const isPhraseEnd = this.beatCount % PHRASE_LENGTH === (PHRASE_LENGTH - 1);
       const octaveShift = isPhraseEnd && this.rng() < 0.3 ? 2 : 1;
       const fMel = this.noteHz(this.degree, octaveShift);
-      this.playNote(fMel, t0, beatSec*0.85, 0.22, {a:0.02, d:0.2, s:0.55, r:0.25}, this.currentTimbre, 1.5);
+      this.playNote(fMel, t0, beatSec*0.85, 0.22, {a:0.02, d:0.2, s:0.55, r:0.25}, this.currentTimbre, 1.5, undefined, 0);
     }
 
-    // Pad with section offset and stereo panning
+    // Pad with section offset and stereo panning (exact spec: dual detune ±0.5%)
     const padDegree = (this.degree + 2 + sectionOffset + 5) % 5;
     const fPad = this.noteHz(padDegree, 2);
     this.playNote(fPad*0.995, t0, beatSec*1.0, 0.12, {a:0.5, d:0.8, s:0.7, r:0.8}, this.currentTimbre, undefined, this.padPanL);
@@ -511,12 +562,17 @@ export class AmbientEngine {
     this.schedulerId = window.setTimeout(()=>this.tick(), delay);
   }
 
-  playNote(freq:number, t0:number, dur:number, amp:number, env:{a:number,d:number,s:number,r:number}, timbre:TimbreMode='sine', vibrato?:number, panNode?:StereoPannerNode){
+  playNote(freq:number, t0:number, dur:number, amp:number, env:{a:number,d:number,s:number,r:number}, timbre:TimbreMode='sine', vibrato?:number, panNode?:StereoPannerNode, melodyBusIndex?:number){
     const [osc, modOsc] = this.createOscillator(freq, timbre);
     const g = this.ctx.createGain();
 
-    // Apply soft clipping for softsq timbre
+    // Apply LP filter for softsq timbre (exact spec: 3.2kHz Q=0.7)
+    let filterNode: BiquadFilterNode | null = null;
     if (timbre === 'softsq') {
+      filterNode = this.ctx.createBiquadFilter();
+      filterNode.type = 'lowpass';
+      filterNode.frequency.value = 3200; // 3.2kHz
+      filterNode.Q.value = 0.7;
       g.gain.value = 0.3; // reduce gain for square wave
     }
 
@@ -536,11 +592,27 @@ export class AmbientEngine {
     g.gain.setValueAtTime(amp*env.s, t0 + Math.max(env.a+env.d, dur));
     g.gain.linearRampToValueAtTime(0.0001, t0 + Math.max(env.a+env.d, dur) + env.r);
 
-    osc.connect(g);
-    if (panNode) {
-      g.connect(panNode).connect(this.gain);
+    // Connect oscillator → filter (if softsq) → gain → output
+    if (filterNode) {
+      osc.connect(filterNode);
+      filterNode.connect(g);
     } else {
-      g.connect(this.gain);
+      osc.connect(g);
+    }
+    
+    // Route to melody bus if specified, otherwise to main gain
+    if (melodyBusIndex !== undefined && melodyBusIndex < this.melodyBuses.length) {
+      if (panNode) {
+        g.connect(panNode).connect(this.melodyBuses[melodyBusIndex]);
+      } else {
+        g.connect(this.melodyBuses[melodyBusIndex]);
+      }
+    } else {
+      if (panNode) {
+        g.connect(panNode).connect(this.gain);
+      } else {
+        g.connect(this.gain);
+      }
     }
     
     // Start oscillators
@@ -558,9 +630,10 @@ export class AmbientEngine {
     this.delay.delayTime.setValueAtTime(0.3 + 0.4*mix, t0);
     this.fb.gain.setValueAtTime(0.2 + 0.5*mix, t0);
     
-    // Modulate filter cutoff with mix: 800Hz to 3500Hz
-    const cutoff = 800 + mix * 2700;
-    this.filter.frequency.setValueAtTime(cutoff, t0);
+    // Modulate filter cutoff with mix (exact spec: 5kHz..9kHz, 500ms ramp)
+    const cutoff = 5000 + mix * 4000;
+    this.filter.frequency.setValueAtTime(this.filter.frequency.value, t0);
+    this.filter.frequency.linearRampToValueAtTime(cutoff, t0 + 0.5);
   }
 
   setScale(scale: 'majorPent' | 'minorPent'){
@@ -581,6 +654,21 @@ export class AmbientEngine {
   
   setDrumLevel(drumLevel: number){
     this.params.drumLevel = drumLevel;
+  }
+  
+  // Get current scene name for visuals
+  getCurrentSceneName(): 'Calm' | 'Nocturne' | 'Ether' {
+    return SCENES[this.currentSceneIndex].name as 'Calm' | 'Nocturne' | 'Ether';
+  }
+  
+  // Get melody buses for visual analysis
+  getMelodyBuses(): AudioNode[] {
+    return this.melodyBuses;
+  }
+  
+  // Get master output node for recording
+  getMasterNode(): AudioNode {
+    return this.out;
   }
 
   async start(){
