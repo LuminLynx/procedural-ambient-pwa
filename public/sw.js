@@ -1,12 +1,8 @@
-const CACHE = 'ambient-v1';
+const CACHE = 'ambient-v2';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/audio/engine.ts',
-  '/src/styles.css'
+  './',
+  './index.html',
+  './manifest.webmanifest'
 ];
 
 self.addEventListener('install', (e) => {

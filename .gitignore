@@ -8,4 +8,7 @@ build/
 # Ignore environment variables
 .environment
 
+# TypeScript build info
+*.tsbuildinfo
+
 #

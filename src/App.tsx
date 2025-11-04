@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { AmbientEngine } from './audio/engine'
 
 export default function App(){
@@ -12,7 +12,46 @@ export default function App(){
   const [mix, setMix] = useState(0.4)
   const [rootHz, setRootHz] = useState(220)
 
-  const engine = useMemo(()=> new AmbientEngine({ scale, rootHz, bpm, complexity, mix }), [scale, rootHz, bpm, complexity, mix])
+  const engineRef = useRef<AmbientEngine | null>(null)
+
+  useEffect(() => {
+    engineRef.current = new AmbientEngine({ scale, rootHz, bpm, complexity, mix })
+    return () => {
+      if (engineRef.current) {
+        engineRef.current.stop()
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setScale(scale)
+    }
+  }, [scale])
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setRootHz(rootHz)
+    }
+  }, [rootHz])
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setBpm(bpm)
+    }
+  }, [bpm])
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setComplexity(complexity)
+    }
+  }, [complexity])
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setMix(mix)
+    }
+  }, [mix])
 
   useEffect(()=>{
     const handler = (e:any)=>{ e.preventDefault(); setDeferredPrompt(e); };
@@ -21,8 +60,19 @@ export default function App(){
     return ()=> window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
-  async function onStart(){ await engine.start(); setRunning(true) }
-  function onStop(){ engine.stop(); setRunning(false) }
+  async function onStart(){ 
+    if (engineRef.current) {
+      await engineRef.current.start()
+      setRunning(true)
+    }
+  }
+  
+  function onStop(){ 
+    if (engineRef.current) {
+      engineRef.current.stop()
+      setRunning(false)
+    }
+  }
 
   async function onInstall(){
     if (!deferredPrompt) return;
