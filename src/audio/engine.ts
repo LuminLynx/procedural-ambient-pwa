@@ -11,6 +11,7 @@ export type EngineParams = {
   enableScenes?: boolean; // default true
   enableHarmonicLoop?: boolean; // default true
   seed?: number; // if present, makes session repeatable
+  drumLevel?: number; // 0..1, overall drum volume
 };
 
 const MAJOR_PENT = [0,2,4,7,9];
@@ -22,6 +23,13 @@ const BAR_LENGTH = 8; // beats per 8-bar section cycle
 const BASS_HITS = 3; // Euclidean rhythm: 3 hits over 8 beats
 const CADENCE_INTERVAL = 16; // beats between cadences
 const PHRASE_LENGTH = 32; // beats per phrase for octave lifts
+
+// Drum pattern constants
+const DRUM_GHOST_PROBABILITY = 0.25; // Probability of ghost snare notes
+const DRUM_SNARE_AMP = 0.45; // Base amplitude for snare hits
+const DRUM_KICK_AMP = 0.6; // Base amplitude for kick hits
+const DRUM_HAT_AMP = 0.25; // Base amplitude for hi-hat hits
+const DRUM_HAT_CLOSED_PROB = 0.85; // Probability of closed vs open hi-hats
 
 // Scene definitions
 type Scene = { 
@@ -97,6 +105,12 @@ export class AmbientEngine {
   
   // Seeded RNG
   rng: () => number;
+  
+  // Drum section
+  drumBus: GainNode;
+  drumCompressor: DynamicsCompressorNode;
+  noiseBuffer: AudioBuffer;
+  sixteenthCount = 0; // 16th note counter for drum patterns
 
   constructor(params: EngineParams){
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -131,6 +145,19 @@ export class AmbientEngine {
     this.delay.connect(this.out);
     this.filter.connect(this.out);
     this.out.connect(this.ctx.destination);
+
+    // Setup drum bus with compressor
+    this.drumBus = this.ctx.createGain();
+    this.drumCompressor = this.ctx.createDynamicsCompressor();
+    this.drumCompressor.threshold.value = -20;
+    this.drumCompressor.ratio.value = 3;
+    this.drumCompressor.attack.value = 0.003;
+    this.drumCompressor.release.value = 0.25;
+    this.drumBus.connect(this.drumCompressor);
+    this.drumCompressor.connect(this.out);
+    
+    // Create shared noise buffer for hats and snare
+    this.noiseBuffer = this.createNoiseBuffer();
 
     this.params = params;
     
@@ -293,6 +320,122 @@ export class AmbientEngine {
   euclideanRhythm(step: number, pulses: number, steps: number): boolean {
     return (step * pulses) % steps < pulses;
   }
+  
+  // Create shared noise buffer for drums
+  createNoiseBuffer(): AudioBuffer {
+    const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds of noise
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    // Use seeded RNG for deterministic noise when seed is provided
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = this.rng() * 2 - 1;
+    }
+    return buffer;
+  }
+  
+  // Kick drum: sine pitch-drop thump
+  playKick(t0: number, amp: number) {
+    const drumLevel = this.params.drumLevel ?? 0.5;
+    if (drumLevel === 0) return;
+    
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t0);
+    osc.frequency.exponentialRampToValueAtTime(40, t0 + 0.05);
+    
+    g.gain.setValueAtTime(amp * drumLevel, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+    
+    osc.connect(g);
+    g.connect(this.drumBus);
+    
+    osc.start(t0);
+    osc.stop(t0 + 0.3);
+  }
+  
+  // Snare drum: filtered noise burst
+  playSnare(t0: number, amp: number, isGhost: boolean = false) {
+    const drumLevel = this.params.drumLevel ?? 0.5;
+    if (drumLevel === 0) return;
+    
+    const noise = this.ctx.createBufferSource();
+    const filter = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    
+    noise.buffer = this.noiseBuffer;
+    filter.type = 'bandpass';
+    filter.frequency.value = 2000;
+    filter.Q.value = 1.5;
+    
+    const finalAmp = isGhost ? amp * 0.3 : amp;
+    const duration = isGhost ? 0.06 : 0.12;
+    
+    g.gain.setValueAtTime(finalAmp * drumLevel, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    
+    noise.connect(filter);
+    filter.connect(g);
+    g.connect(this.drumBus);
+    
+    noise.start(t0);
+    noise.stop(t0 + duration);
+  }
+  
+  // Hi-hats: high-passed noise clicks
+  playHat(t0: number, amp: number, closed: boolean = true) {
+    const drumLevel = this.params.drumLevel ?? 0.5;
+    if (drumLevel === 0) return;
+    
+    const noise = this.ctx.createBufferSource();
+    const filter = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    
+    noise.buffer = this.noiseBuffer;
+    filter.type = 'highpass';
+    filter.frequency.value = 7000;
+    filter.Q.value = 1.0;
+    
+    const duration = closed ? 0.03 : 0.08;
+    const finalAmp = closed ? amp : amp * 0.7;
+    
+    g.gain.setValueAtTime(finalAmp * drumLevel, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    
+    noise.connect(filter);
+    filter.connect(g);
+    g.connect(this.drumBus);
+    
+    noise.start(t0);
+    noise.stop(t0 + duration);
+  }
+  
+  // Drum scheduler: called every 16th note
+  playDrums(t0: number, sixteenthStep: number) {
+    const drumLevel = this.params.drumLevel ?? 0.5;
+    if (drumLevel === 0) return;
+    
+    // Kick: Euclidean 5/16 pattern (main beats + occasional syncopation)
+    if (this.euclideanRhythm(sixteenthStep % 16, 5, 16)) {
+      this.playKick(t0, DRUM_KICK_AMP);
+    }
+    
+    // Snare: base pattern on beats 2 and 4 (steps 4 and 12) + ghosts
+    const beatStep = sixteenthStep % 16;
+    if (beatStep === 4 || beatStep === 12) {
+      this.playSnare(t0, DRUM_SNARE_AMP, false);
+    } else if (this.euclideanRhythm(sixteenthStep % 16, 2, 16) && this.rng() < DRUM_GHOST_PROBABILITY) {
+      // Occasional ghost notes
+      this.playSnare(t0, DRUM_SNARE_AMP, true);
+    }
+    
+    // Hi-hats: Euclidean 9/16 pattern (off-beats and syncopations)
+    if (this.euclideanRhythm(sixteenthStep % 16, 9, 16)) {
+      const isClosed = this.rng() < DRUM_HAT_CLOSED_PROB; // Mostly closed hats
+      this.playHat(t0, DRUM_HAT_AMP, isClosed);
+    }
+  }
 
   tick(){
     const beatSec = 60/this.params.bpm;
@@ -302,6 +445,17 @@ export class AmbientEngine {
     this.updateSceneEngine();
     this.updateHarmonicLoop();
     this.updatePanDrift();
+    
+    // Trigger drums on 16th note subdivisions
+    // Schedule 4 drum events per beat for tighter rhythmic control.
+    // This approach is acceptable for this use case as it creates a manageable
+    // number of audio nodes per beat and provides good timing precision.
+    const sixteenthSec = beatSec / 4;
+    for (let i = 0; i < 4; i++) {
+      const sixteenthTime = t0 + (i * sixteenthSec);
+      this.playDrums(sixteenthTime, this.sixteenthCount + i);
+    }
+    this.sixteenthCount += 4; // Advance by 4 sixteenth notes per beat
     
     // 8-bar section root offsets (I–vi–IV–V pattern mapped to pentatonic)
     const sectionOffsets = [0, -3, -1, 2]; // cycle every 8 bars
@@ -423,6 +577,10 @@ export class AmbientEngine {
 
   setComplexity(complexity: number){
     this.params.complexity = complexity;
+  }
+  
+  setDrumLevel(drumLevel: number){
+    this.params.drumLevel = drumLevel;
   }
 
   async start(){
