@@ -10,6 +10,13 @@ export type EngineParams = {
 const MAJOR_PENT = [0,2,4,7,9];
 const MINOR_PENT = [0,3,5,7,10];
 
+// Musical structure constants
+const BEATS_PER_BAR = 4;
+const BAR_LENGTH = 8; // beats per 8-bar section cycle
+const BASS_HITS = 3; // Euclidean rhythm: 3 hits over 8 beats
+const CADENCE_INTERVAL = 16; // beats between cadences
+const PHRASE_LENGTH = 32; // beats per phrase for octave lifts
+
 export class AmbientEngine {
   ctx: AudioContext;
   gain: GainNode;
@@ -92,11 +99,11 @@ export class AmbientEngine {
     
     // 8-bar section root offsets (I–vi–IV–V pattern mapped to pentatonic)
     const sectionOffsets = [0, -3, -1, 2]; // cycle every 8 bars
-    const barIndex = Math.floor(this.beatCount / 4);
+    const barIndex = Math.floor(this.beatCount / BEATS_PER_BAR);
     const sectionOffset = sectionOffsets[barIndex % sectionOffsets.length];
 
     // Cadence every 16 beats: nudge to stable degree
-    const isCadence = this.beatCount % 16 === 15;
+    const isCadence = this.beatCount % CADENCE_INTERVAL === (CADENCE_INTERVAL - 1);
     if (isCadence && Math.random() < 0.75) {
       this.degree = Math.random() < 0.5 ? 0 : 2; // stable degrees
       this.lastInterval = 0;
@@ -108,7 +115,7 @@ export class AmbientEngine {
     const restProb = 0.15 + 0.25 * this.params.complexity;
     if (Math.random() > restProb) {
       // Occasional octave lift at phrase ends (every 32 beats)
-      const isPhraseEnd = this.beatCount % 32 === 31;
+      const isPhraseEnd = this.beatCount % PHRASE_LENGTH === (PHRASE_LENGTH - 1);
       const octaveShift = isPhraseEnd && Math.random() < 0.3 ? 2 : 1;
       const fMel = this.noteHz(this.degree, octaveShift);
       this.playSine(fMel, t0, beatSec*0.85, 0.22, {a:0.02, d:0.2, s:0.55, r:0.25}, 1.5);
@@ -121,8 +128,8 @@ export class AmbientEngine {
     this.playSine(fPad*1.005, t0, beatSec*1.0, 0.12, {a:0.6, d:0.8, s:0.7, r:0.9});
 
     // Bass with Euclidean rhythm and section offset
-    const beatInBar = this.beatCount % 8;
-    if (this.euclideanRhythm(beatInBar, 3, 8)) {
+    const beatInBar = this.beatCount % BAR_LENGTH;
+    if (this.euclideanRhythm(beatInBar, BASS_HITS, BAR_LENGTH)) {
       const bassDegree = (this.degree + sectionOffset + 5) % 5;
       const fBass = this.noteHz(bassDegree, -1)/2;
       this.playSine(fBass, t0, beatSec*0.7, 0.18, {a:0.005, d:0.15, s:0.25, r:0.2});
