@@ -1,9 +1,6 @@
 // Clip representation for timeline
 import { Clip as ClipType } from '../../types/sequencer';
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
+import { generateId } from '../../utils/common';
 
 export class Clip implements ClipType {
   id: string;

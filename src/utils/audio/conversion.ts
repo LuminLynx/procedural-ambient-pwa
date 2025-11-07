@@ -1,4 +1,5 @@
 // Audio conversion utilities
+import { clamp } from '../common';
 
 /**
  * Convert MIDI note number to frequency in Hz
@@ -37,17 +38,6 @@ export function gainToDb(gain: number): number {
 }
 
 /**
- * Clamp a value between min and max
- * @param value Value to clamp
- * @param min Minimum value
- * @param max Maximum value
- * @returns Clamped value
- */
-export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-/**
  * Linear interpolation between two values
  * @param a Start value
  * @param b End value
@@ -77,3 +67,6 @@ export function beatsToSeconds(beats: number, bpm: number): number {
 export function secondsToBeats(seconds: number, bpm: number): number {
   return (seconds * bpm) / 60;
 }
+
+// Re-export clamp for convenience
+export { clamp };

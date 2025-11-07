@@ -1,14 +1,7 @@
 // Pattern class for sequencer
 import { Pattern as PatternType } from '../../types/sequencer';
 import { Note } from './Note';
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+import { generateId, clamp } from '../../utils/common';
 
 export class Pattern implements PatternType {
   id: string;

@@ -1,14 +1,7 @@
 // Track class for multi-track support
 import { TrackType, TrackConfig } from '../../types/audio';
 import { Clip } from './Clip';
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
+import { generateId, clamp } from '../../utils/common';
 
 export class Track {
   id: string;

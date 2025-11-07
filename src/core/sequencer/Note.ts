@@ -1,9 +1,6 @@
 // Note representation for sequencer
 import { Note as NoteType } from '../../types/sequencer';
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
+import { generateId } from '../../utils/common';
 
 export class Note implements NoteType {
   id: string;

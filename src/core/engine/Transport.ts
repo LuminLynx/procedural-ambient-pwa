@@ -1,12 +1,9 @@
 // Transport system for playback control
 import { TransportState } from '../../types/sequencer';
+import { clamp } from '../../utils/common';
 
 export type TransportCallback = (position: number) => void;
 export type PlayStateCallback = (playing: boolean) => void;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 export class Transport {
   private ctx: AudioContext;
