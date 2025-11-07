@@ -1,6 +1,10 @@
 # 🔧 Technical Implementation Roadmap
 ## Transforming Procedural Ambient into a Professional Music Studio
 
+> **Note**: This document contains conceptual code examples to illustrate implementation approaches. 
+> Code snippets are simplified for clarity and may require additional error handling, type definitions, 
+> and helper functions when implemented. Treat these as architectural guidance rather than production-ready code.
+
 ---
 
 ## 🎯 Architecture Overview

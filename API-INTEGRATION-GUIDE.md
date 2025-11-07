@@ -1,6 +1,10 @@
 # 🔌 API Integration & AI Enhancement Guide
 ## Supercharging the Music Studio with External Services
 
+> **Note**: This document contains example code to demonstrate API integration patterns.
+> Code snippets are simplified for clarity and educational purposes. Production implementations
+> should include proper error handling, rate limiting, authentication, and testing.
+
 ---
 
 ## 🎯 Executive Summary
