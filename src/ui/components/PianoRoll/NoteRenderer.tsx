@@ -20,7 +20,7 @@ export const NoteRenderer: React.FC<NoteRendererProps> = ({
 }) => {
   const left = note.time * pixelsPerBeat;
   const width = note.duration * pixelsPerBeat;
-  const top = (127 - note.pitch - (127 - lowestNote)) * noteHeight;
+  const top = (lowestNote - note.pitch + 127) * noteHeight;
   
   // Color intensity based on velocity
   const intensity = Math.floor(note.velocity * 100);

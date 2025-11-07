@@ -58,10 +58,9 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
           onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
           style={{
             flex: 1,
-            writingMode: 'vertical-lr' as any,
-            WebkitAppearance: 'slider-vertical',
+            writingMode: 'vertical-lr',
             width: '20px'
-          }}
+          } as React.CSSProperties}
         />
         <div style={{
           fontSize: '10px',

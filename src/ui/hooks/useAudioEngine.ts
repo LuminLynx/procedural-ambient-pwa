@@ -17,7 +17,8 @@ export function useAudioEngine() {
     return () => {
       if (engineRef.current) {
         engineRef.current.transport.stop();
-        engineRef.current.ctx.close();
+        // Close audio context (fire and forget, it's cleanup)
+        engineRef.current.ctx.close().catch(console.error);
       }
     };
   }, []);

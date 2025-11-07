@@ -107,10 +107,9 @@ export const MixerView: React.FC<MixerViewProps> = ({
                   disabled
                   style={{
                     flex: 1,
-                    writingMode: 'vertical-lr' as any,
-                    WebkitAppearance: 'slider-vertical',
+                    writingMode: 'vertical-lr',
                     width: '20px'
-                  }}
+                  } as React.CSSProperties}
                 />
                 <div style={{
                   fontSize: '10px',
