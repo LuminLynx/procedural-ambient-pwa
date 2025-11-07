@@ -39,6 +39,9 @@ export class Pattern implements PatternType {
     const gridSize = 1 / subdivision; // e.g., 1/16 = 0.0625
     this.notes.forEach(note => {
       note.time = Math.round(note.time / gridSize) * gridSize;
+      // Ensure note stays within pattern bounds
+      note.time = Math.min(note.time, this.length - note.duration);
+      note.time = Math.max(0, note.time);
     });
   }
   

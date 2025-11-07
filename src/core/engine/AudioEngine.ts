@@ -119,9 +119,11 @@ export class AudioEngine {
     
     for (const track of this.tracks.values()) {
       if (hasSolo) {
-        // If any track is soloed, mute non-soloed tracks
+        // If any track is soloed, only soloed tracks should be audible
         const shouldMute = !track.solo;
-        track.setMute(shouldMute || track.muted);
+        // Temporarily override mute state for solo functionality
+        const actualVolume = shouldMute ? 0 : track.volume;
+        track.output.gain.setValueAtTime(actualVolume, this.ctx.currentTime);
       } else {
         // No solo, respect individual mute state
         track.setMute(track.muted);

@@ -109,6 +109,16 @@ export class IntegratedMusicSystem {
   cleanup(): void {
     this.stopAmbient();
     this.stopNew();
+    
+    // Disconnect ambient engine from bridge track
+    if (this.bridgeTrack) {
+      try {
+        this.ambientEngine.getMasterNode().disconnect(this.bridgeTrack.input);
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+    }
+    
     this.newEngine.destroy();
   }
 }

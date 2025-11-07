@@ -13,6 +13,7 @@ The sequencer architecture consists of several key components:
    - Manages BPM and position
    - Handles looping
    - Event system for position and playback state changes
+   - **Note**: Current implementation uses interval-based scheduling. Future enhancement could use time-based calculation for more precise timing.
 
 2. **Track** (`src/core/sequencer/Track.ts`)
    - Represents a single track in the arrangement
@@ -22,7 +23,7 @@ The sequencer architecture consists of several key components:
 
 3. **Pattern** (`src/core/sequencer/Pattern.ts`)
    - Container for musical notes
-   - Supports quantization, humanization, transpose
+   - Supports quantization (with boundary checking), humanization, transpose
    - Fixed length (in beats)
 
 4. **Note** (`src/core/sequencer/Note.ts`)
