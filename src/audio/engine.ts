@@ -122,7 +122,18 @@ export class AmbientEngine {
   sixteenthCount = 0; // 16th note counter for drum patterns
 
   constructor(params: EngineParams){
-    this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Check for AudioContext support
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) {
+      throw new Error('Web Audio API is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+    }
+    
+    try {
+      this.ctx = new AudioContextClass();
+    } catch (error) {
+      throw new Error(`Failed to create AudioContext: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your device audio settings.`);
+    }
+    
     this.out = this.ctx.createGain();
     this.gain = this.ctx.createGain();
     this.delay = this.ctx.createDelay(2.0);

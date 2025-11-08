@@ -19,9 +19,19 @@ export class AudioEngine {
   private _initialized: boolean = false;
   
   constructor(config: AudioEngineConfig = {}) {
-    this.ctx = new AudioContext({
-      sampleRate: config.sampleRate
-    });
+    // Check for AudioContext support
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) {
+      throw new Error('Web Audio API is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+    }
+    
+    try {
+      this.ctx = new AudioContextClass({
+        sampleRate: config.sampleRate
+      });
+    } catch (error) {
+      throw new Error(`Failed to create AudioContext: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your device audio settings.`);
+    }
     
     // Create master output
     this.master = this.ctx.createGain();
