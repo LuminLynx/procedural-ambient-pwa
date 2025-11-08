@@ -3,12 +3,14 @@ import { AmbientEngine } from './audio/engine'
 import { AudioRecorder } from './audio/recorder'
 import Controls, { loadSeedFromStorage, saveSeedToStorage } from './ui/controls'
 import CanvasVisuals from './visuals/canvas'
+import { SequencerDemo } from './ui/components/SequencerDemo'
 
 export default function App(){
   const [installed, setInstalled] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [running, setRunning] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [mode, setMode] = useState<'ambient' | 'sequencer'>('ambient')
 
   // Control states with exact defaults from spec
   const [seed, setSeed] = useState<number>(loadSeedFromStorage())
@@ -156,6 +158,53 @@ export default function App(){
       <p className="small" style={{marginTop: 0}}>
         Generative music with evolving melodies, reactive visuals, and infinite variation.
       </p>
+
+      {/* Mode Selector */}
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        marginTop: 16,
+        marginBottom: 16,
+        borderBottom: '1px solid #333',
+        paddingBottom: '8px'
+      }}>
+        <button
+          onClick={() => setMode('ambient')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: mode === 'ambient' ? '#3b82f6' : 'transparent',
+            color: mode === 'ambient' ? '#fff' : '#888',
+            border: 'none',
+            borderBottom: mode === 'ambient' ? '2px solid #3b82f6' : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600'
+          }}
+        >
+          🎵 Ambient Mode
+        </button>
+        <button
+          onClick={() => setMode('sequencer')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: mode === 'sequencer' ? '#3b82f6' : 'transparent',
+            color: mode === 'sequencer' ? '#fff' : '#888',
+            border: 'none',
+            borderBottom: mode === 'sequencer' ? '2px solid #3b82f6' : '2px solid transparent',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600'
+          }}
+        >
+          🎹 Sequencer Demo (NEW)
+        </button>
+      </div>
+
+      {mode === 'sequencer' && (
+        <SequencerDemo />
+      )}
+
+      {mode === 'ambient' && (<>
       
       {/* Visuals */}
       {running && (
@@ -216,6 +265,7 @@ export default function App(){
       <footer className="small" style={{marginTop:16}}>
         Tip: on iOS, toggle Silent Mode off to hear audio.
       </footer>
+      </>)}
     </div>
   )
 }
