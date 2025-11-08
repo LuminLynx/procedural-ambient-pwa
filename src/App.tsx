@@ -4,6 +4,8 @@ import { AudioRecorder } from './audio/recorder'
 import Controls, { loadSeedFromStorage, saveSeedToStorage } from './ui/controls'
 import CanvasVisuals from './visuals/canvas'
 import { SequencerDemo } from './ui/components/SequencerDemo'
+import { AudioUpload } from './ui/components/AudioUpload'
+import { SimpleAudioPlayer } from './ui/components/SimpleAudioPlayer'
 
 export default function App(){
   const [installed, setInstalled] = useState(false)
@@ -13,6 +15,7 @@ export default function App(){
   const [mode, setMode] = useState<'ambient' | 'sequencer'>('ambient')
   const [engineError, setEngineError] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
+  const [uploadedAudio, setUploadedAudio] = useState<{ buffer: AudioBuffer; fileName: string } | null>(null)
 
   // Control states with exact defaults from spec
   const [seed, setSeed] = useState<number>(loadSeedFromStorage())
@@ -25,6 +28,15 @@ export default function App(){
 
   const engineRef = useRef<AmbientEngine | null>(null)
   const recorderRef = useRef<AudioRecorder | null>(null)
+
+  const handleAudioUpload = (audioBuffer: AudioBuffer, fileName: string) => {
+    // Stop any running audio
+    if (running) {
+      onStop();
+    }
+    
+    setUploadedAudio({ buffer: audioBuffer, fileName });
+  };
 
   // Initialize engine when settings change
   useEffect(() => {
@@ -306,8 +318,22 @@ export default function App(){
             onReset={onReset}
             disabled={running}
           />
+          
+          {/* Audio Upload Feature */}
+          <AudioUpload
+            onFileLoaded={handleAudioUpload}
+            disabled={running}
+          />
         </div>
       </div>
+      
+      {/* Uploaded Audio Player */}
+      {uploadedAudio && (
+        <SimpleAudioPlayer
+          audioBuffer={uploadedAudio.buffer}
+          fileName={uploadedAudio.fileName}
+        />
+      )}
       
       <footer className="small" style={{marginTop:16}}>
         Tip: on iOS, toggle Silent Mode off to hear audio.
