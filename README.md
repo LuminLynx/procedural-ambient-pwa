@@ -2,6 +2,8 @@
 
 Installable Progressive Web App that generates endless ambient music in the browser using Web Audio. Works offline after first load.
 
+**🌐 Live App:** https://luminlynx.github.io/procedural-ambient-pwa/
+
 ## Tech
 - Vite + React + TypeScript
 - Web Audio API (no heavy deps)
