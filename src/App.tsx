@@ -4,6 +4,8 @@ import { AudioRecorder } from './audio/recorder'
 import Controls, { loadSeedFromStorage, saveSeedToStorage } from './ui/controls'
 import CanvasVisuals from './visuals/canvas'
 import { SequencerDemo } from './ui/components/SequencerDemo'
+import { AudioUpload } from './ui/components/AudioUpload'
+import { SimpleAudioPlayer } from './ui/components/SimpleAudioPlayer'
 
 export default function App(){
   const [installed, setInstalled] = useState(false)
@@ -11,6 +13,9 @@ export default function App(){
   const [running, setRunning] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [mode, setMode] = useState<'ambient' | 'sequencer'>('ambient')
+  const [engineError, setEngineError] = useState<string | null>(null)
+  const [isInitializing, setIsInitializing] = useState(false)
+  const [uploadedAudio, setUploadedAudio] = useState<{ buffer: AudioBuffer; fileName: string } | null>(null)
 
   // Control states with exact defaults from spec
   const [seed, setSeed] = useState<number>(loadSeedFromStorage())
@@ -24,20 +29,36 @@ export default function App(){
   const engineRef = useRef<AmbientEngine | null>(null)
   const recorderRef = useRef<AudioRecorder | null>(null)
 
+  const handleAudioUpload = (audioBuffer: AudioBuffer, fileName: string) => {
+    // Stop any running audio
+    if (running) {
+      onStop();
+    }
+    
+    setUploadedAudio({ buffer: audioBuffer, fileName });
+  };
+
   // Initialize engine when settings change
   useEffect(() => {
-    engineRef.current = new AmbientEngine({ 
-      scale: 'majorPent',
-      rootHz: 220,
-      bpm: tempo, 
-      complexity, 
-      mix: space,
-      drumLevel: 0.5,
-      enableScenes,
-      enableHarmonicLoop: true,
-      seed,
-      sceneDurationBars: sceneDuration
-    })
+    try {
+      engineRef.current = new AmbientEngine({ 
+        scale: 'majorPent',
+        rootHz: 220,
+        bpm: tempo, 
+        complexity, 
+        mix: space,
+        drumLevel: 0.5,
+        enableScenes,
+        enableHarmonicLoop: true,
+        seed,
+        sceneDurationBars: sceneDuration
+      })
+      setEngineError(null)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize audio engine';
+      setEngineError(errorMessage);
+      console.error('Engine initialization error:', error);
+    }
     return () => {
       if (engineRef.current) {
         engineRef.current.stop()
@@ -73,7 +94,15 @@ export default function App(){
   }, [])
 
   async function onStart(){ 
-    if (engineRef.current) {
+    if (!engineRef.current) {
+      setEngineError('Audio engine not initialized. Please refresh the page.');
+      return;
+    }
+    
+    setIsInitializing(true);
+    setEngineError(null);
+    
+    try {
       await engineRef.current.start()
       setRunning(true)
       
@@ -93,6 +122,12 @@ export default function App(){
           }
         }
       )
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start audio';
+      setEngineError(errorMessage);
+      console.error('Start error:', error);
+    } finally {
+      setIsInitializing(false);
     }
   }
   
@@ -206,6 +241,24 @@ export default function App(){
 
       {mode === 'ambient' && (<>
       
+      {/* Error Display */}
+      {engineError && (
+        <div style={{
+          marginTop: 16,
+          padding: 16,
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: 12,
+          color: '#fca5a5'
+        }}>
+          <strong>⚠️ Audio Error:</strong> {engineError}
+          <div style={{ marginTop: 8, fontSize: 14, color: '#94a3b8' }}>
+            Try refreshing the page or check your device audio settings. 
+            <strong> Android users:</strong> Ensure Chrome is up to date.
+          </div>
+        </div>
+      )}
+      
       {/* Visuals */}
       {running && (
         <div style={{marginTop: 16}}>
@@ -225,7 +278,13 @@ export default function App(){
           <div className="card">
             <div style={{display:'flex', gap:12}}>
               {!running ? (
-                <button className="btn" onClick={onStart}>Start</button>
+                <button 
+                  className="btn" 
+                  onClick={onStart}
+                  disabled={isInitializing || !!engineError}
+                >
+                  {isInitializing ? 'Starting...' : 'Start'}
+                </button>
               ) : (
                 <button className="btn" onClick={onStop}>Stop</button>
               )}
@@ -259,8 +318,22 @@ export default function App(){
             onReset={onReset}
             disabled={running}
           />
+          
+          {/* Audio Upload Feature */}
+          <AudioUpload
+            onFileLoaded={handleAudioUpload}
+            disabled={running}
+          />
         </div>
       </div>
+      
+      {/* Uploaded Audio Player */}
+      {uploadedAudio && (
+        <SimpleAudioPlayer
+          audioBuffer={uploadedAudio.buffer}
+          fileName={uploadedAudio.fileName}
+        />
+      )}
       
       <footer className="small" style={{marginTop:16}}>
         Tip: on iOS, toggle Silent Mode off to hear audio.
