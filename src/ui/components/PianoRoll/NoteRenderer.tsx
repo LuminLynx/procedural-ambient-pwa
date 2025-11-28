@@ -25,7 +25,8 @@ export const NoteRenderer: React.FC<NoteRendererProps> = ({
   const left = note.time * pixelsPerBeat;
   const width = note.duration * pixelsPerBeat;
   // Calculate top position based on highest note
-  const noteRow = highestNote - note.pitch;
+  // Clamp noteRow to prevent negative values if note.pitch exceeds highestNote
+  const noteRow = Math.max(0, highestNote - note.pitch);
   const top = noteRow * noteHeight;
   
   // Color intensity based on velocity

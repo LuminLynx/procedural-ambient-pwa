@@ -6,6 +6,16 @@ interface VirtualKeyboardProps {
   disabled?: boolean;
 }
 
+// Keyboard layout constants
+const WHITE_KEY_WIDTH = 44;
+const KEY_GAP = 2;
+const BLACK_KEY_WIDTH = 32;
+const WHITE_KEY_WITH_GAP = WHITE_KEY_WIDTH + KEY_GAP;
+const BLACK_KEY_OFFSET = WHITE_KEY_WIDTH / 2 - BLACK_KEY_WIDTH / 2 + KEY_GAP;
+
+// Unicode sharp symbol for display
+const SHARP_SYMBOL = '♯';
+
 /**
  * Virtual Keyboard component for mobile touch input
  * Provides octave selection and note buttons for touch devices
@@ -26,6 +36,10 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 
   const isBlackKey = (noteName: string): boolean => {
     return noteName.includes('#');
+  };
+  
+  const formatNoteName = (noteName: string): string => {
+    return noteName.replace('#', SHARP_SYMBOL);
   };
 
   const handleNoteStart = useCallback((noteIndex: number) => {
@@ -161,7 +175,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                 }}
                 disabled={disabled}
                 style={{
-                  width: '44px',
+                  width: `${WHITE_KEY_WIDTH}px`,
                   height: '100%',
                   backgroundColor: isActive ? '#60a5fa' : '#f0f0f0',
                   border: '1px solid #333',
@@ -191,8 +205,8 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
-          gap: '2px',
-          paddingLeft: '23px'
+          gap: `${KEY_GAP}px`,
+          paddingLeft: `${BLACK_KEY_OFFSET}px`
         }}>
           {noteNames.map((noteName, index) => {
             if (!isBlackKey(noteName)) return null;
@@ -200,9 +214,9 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
             const midiNote = getMidiNote(index);
             const isActive = activeNotes.has(midiNote);
             
-            // Calculate offset for black keys
+            // Calculate offset for black keys based on white keys before this note
             const whiteKeysBefore = noteNames.slice(0, index).filter(n => !isBlackKey(n)).length;
-            const leftOffset = whiteKeysBefore * 46 - 11; // 44px width + 2px gap - half black key width
+            const leftOffset = whiteKeysBefore * WHITE_KEY_WITH_GAP - BLACK_KEY_OFFSET;
             
             return (
               <button
@@ -220,7 +234,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                 style={{
                   position: 'absolute',
                   left: `${leftOffset}px`,
-                  width: '32px',
+                  width: `${BLACK_KEY_WIDTH}px`,
                   height: '70px',
                   backgroundColor: isActive ? '#3b82f6' : '#222',
                   border: '1px solid #111',
@@ -237,7 +251,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                   transition: 'background-color 0.05s'
                 }}
               >
-                {noteName.replace('#', '♯')}
+                {formatNoteName(noteName)}
               </button>
             );
           })}
