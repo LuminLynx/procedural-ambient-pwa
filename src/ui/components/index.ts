@@ -7,6 +7,7 @@ export { ClipRenderer } from './Timeline/ClipRenderer';
 export { PianoRollEditor } from './PianoRoll/PianoRollEditor';
 export { NoteRenderer } from './PianoRoll/NoteRenderer';
 export { Grid } from './PianoRoll/Grid';
+export { VirtualKeyboard } from './PianoRoll/VirtualKeyboard';
 
 // Mixer components
 export { MixerView } from './Mixer/MixerView';
