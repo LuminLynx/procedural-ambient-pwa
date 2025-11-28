@@ -3,3 +3,4 @@ export { useAudioEngine } from './useAudioEngine';
 export { useTransport } from './useTransport';
 export { useTrack } from './useTrack';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
+export { useMobileDetection } from './useMobileDetection';

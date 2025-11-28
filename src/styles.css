@@ -15,3 +15,59 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system
 .small { color: var(--muted); font-size: 12px; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px){ .row{ grid-template-columns: 1fr; } }
+
+/* Piano Roll Mobile Styles */
+.piano-roll-container {
+  min-height: 300px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+  
+  .piano-roll-container {
+    min-height: 400px;
+  }
+  
+  /* Increase touch targets on mobile */
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 20px;
+  }
+  
+  /* Full-width layouts on mobile */
+  .card {
+    padding: 16px;
+  }
+}
+
+/* Virtual keyboard mobile optimizations */
+.virtual-keyboard {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (max-width: 768px) {
+  .virtual-keyboard button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Smooth scrolling for touch devices */
+@supports (-webkit-overflow-scrolling: touch) {
+  .piano-roll-container > div {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent text selection during touch interactions */
+.piano-roll-container {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
